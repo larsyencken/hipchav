@@ -11,6 +11,7 @@ VERSION = '0.1.0'
 setup(
     name='hipchav',
     description="A minimal command-line HipChat client.",
+    long_description=open('README.rst').read(),
     url="https://github.com/larsyencken/hipchav/",
     version=VERSION,
     author="Lars Yencken",
