@@ -11,9 +11,13 @@ Install ``hipchav`` from source, or using ``pip``::
 
     pip install hipchav
 
-Then you'll need to configure it with your HipChat v2 API key::
+Then you'll need to configure it with your HipChat API key::
 
-    export HIPCHAT_AUTH_TOKEN=thisismyhextokentheygaveme
+    export HIPCHAT_V1_TOKEN=thisismyhextokentheygaveme
+
+or for the v2 API::
+
+    export HIPCHAT_V2_TOKEN=thisismyhextokentheygaveme
 
 Usage
 =====
@@ -41,6 +45,10 @@ Messages are quite straight-forward to send::
 You can also change their color and send notifications to people in the room::
 
     $ hipchav.py message --color=red --notify 'Developers' 'Um, the build is broken'
+
+With the v1 API, you can also choose who the message appears from::
+
+    $ hipchav.py message --from=Glados 'Whole company' 'Dispensing deadly neurotoxin'
 
 Check its usage information for full options::
 
