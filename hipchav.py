@@ -15,40 +15,90 @@ import os
 import sys
 import optparse
 import json
+from collections import namedtuple
+import urllib
 
 import requests
 
-URL_ROOMS = 'https://api.hipchat.com/v2/room'
-URL_MESSAGES = 'https://api.hipchat.com/v2/room/{0}/message'
+ApiToken = namedtuple('ApiToken', 'token version')
+
+URL_ROOMS_V1 = 'https://api.hipchat.com/v1/rooms/list'
+URL_MESSAGES_V1 = 'https://api.hipchat.com/v1/rooms/message'
+
+URL_ROOMS_V2 = 'https://api.hipchat.com/v2/room'
+URL_MESSAGES_V2 = 'https://api.hipchat.com/v2/room/{0}/message'
+
+
+class HipChavError(Exception):
+    pass
 
 
 def _get_auth_token():
-    if 'HIPCHAT_AUTH_TOKEN' not in os.environ:
-        raise Exception('please set HIPCHAT_AUTH_TOKEN with your token')
+    if 'HIPCHAT_V2_TOKEN' in os.environ:
+        # prefer the newer api
+        return ApiToken(os.environ['HIPCHAT_V2_TOKEN'], 2)
 
-    return os.environ['HIPCHAT_AUTH_TOKEN']
+    elif 'HIPCHAT_V1_TOKEN' in os.environ:
+        return ApiToken(os.environ['HIPCHAT_V1_TOKEN'], 1)
+
+    raise HipChavError('please set HIPCHAT_V1_TOKEN or HIPCHAT_V2_TOKEN with '
+                       'your credentials')
 
 
-def list_rooms(token=None):
-    token = token or _get_auth_token()
-    resp = _safe_get(URL_ROOMS, token)
+def list_rooms_v1(token):
+    resp = _safe_get(URL_ROOMS_V1, token, format='json')
     return resp['items']
 
 
-def cmd_list_rooms():
-    rooms = list_rooms()
-    rooms.sort(key=lambda r: r['name'].lower())
-    for r in rooms:
-        print(r['name'])
+def list_rooms_v2(token):
+    resp = _safe_get(URL_ROOMS_V2, token)
+    return resp['items']
 
 
-def cmd_message_room(room_name, message, color=None, notify=False):
-    message_room(room_name, message, color=color, notify=notify)
+def list_rooms():
+    api_token = _get_auth_token()
+    if api_token.version == 1:
+        rooms = list_rooms_v1(api_token.token)
+    elif api_token.version == 2:
+        rooms = list_rooms_v2(api_token.token)
+    else:
+        raise ValueError('unknown api version {0}'.format(api_token.version))
+
+    return rooms
 
 
-def message_room(room_name, message, color=None, notify=False, token=None):
-    token = token or _get_auth_token()
-    url = URL_MESSAGES.format(room_name)
+def message_room(room_name, message, color=None, notify=False,
+                 sender='HipChav'):
+    api_token = _get_auth_token()
+    if api_token.version == 1:
+        message_room_v1(api_token.token, room_name, message, color=color,
+                        notify=notify, sender=sender)
+    elif api_token.version == 2:
+        message_room_v2(api_token.token, room_name, message, color=color,
+                        notify=notify)
+
+    else:
+        raise ValueError('unknown api version {0}'.format(api_token.version))
+
+
+def message_room_v1(token, room_name, message, color=None, notify=False,
+                    sender='HipChav'):
+    data = {'room_id': room_name,
+            'from': sender,
+            'message': message,
+            'message_format': 'text',
+            'notify': notify,
+            'format': 'json'}
+    if color:
+        data['color'] = color
+
+    _safe_post(URL_MESSAGES_V1, token,
+               urllib.urlencode(data),
+               headers={'content-type': 'application/x-www-form-urlencoded'})
+
+
+def message_room_v2(token, room_name, message, color=None, notify=False):
+    url = URL_MESSAGES_V2.format(room_name)
     data = {'message': message}
     if color:
         data['color'] = color
@@ -56,7 +106,8 @@ def message_room(room_name, message, color=None, notify=False, token=None):
     if notify:
         data['notify'] = True
 
-    _safe_post(url, token, **data)
+    _safe_post(url, token, json.dumps(data),
+               headers={'content-type': 'application/json'})
 
 
 def _safe_get(url, token, **kwargs):
@@ -64,7 +115,7 @@ def _safe_get(url, token, **kwargs):
     params['auth_token'] = token
     resp = requests.get(url, params=params)
     if not (200 <= resp.status_code < 300):
-        raise IOError('got HTTP response {0}: {1}'.format(
+        raise HipChavError('got HTTP response {0}: {1}'.format(
             resp.status_code,
             resp.content,
         ))
@@ -72,14 +123,13 @@ def _safe_get(url, token, **kwargs):
     return resp.json()
 
 
-def _safe_post(url, token, **kwargs):
-    data = json.dumps(kwargs)
+def _safe_post(url, token, data, headers=None):
     resp = requests.post(url,
                          params={'auth_token': token},
-                         headers={'content-type': 'application/json'},
+                         headers=headers,
                          data=data)
     if not (200 <= resp.status_code < 300):
-        raise IOError('got HTTP response {0}: {1}'.format(
+        raise HipChavError('got HTTP response {0}: {1}'.format(
             resp.status_code,
             resp.content,
         ))
@@ -104,6 +154,9 @@ to list the available rooms, and the message command to send a message to one.""
                       help='Color the message [yellow]')
     parser.add_option('-n', '--notify', action='store_true', dest='notify',
                       help='Notify the people in the room [false]')
+    parser.add_option('-f', '--from', action='store', dest='sender',
+                      help='Who the message will appear to be from '
+                      '(v1 API only)')
 
     return parser
 
@@ -118,12 +171,15 @@ def main(argv):
 
     cmd = args.pop(0)
     if cmd == 'rooms' and not args:
-        cmd_list_rooms()
+        rooms = list_rooms()
+        rooms.sort(key=lambda r: r['name'].lower())
+        for r in rooms:
+            print(r['name'])
 
     elif cmd == 'message' and len(args) == 2:
         room, message = args
-        cmd_message_room(room, message, notify=options.notify,
-                         color=options.color)
+        message_room(room, message, notify=options.notify,
+                     color=options.color, sender=options.sender)
 
     else:
         parser.print_help()
