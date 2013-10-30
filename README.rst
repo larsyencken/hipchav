@@ -58,6 +58,11 @@ Check its usage information for full options::
 Changelog
 =========
 
+v0.1.2
+------
+
+- Support HTML messages using the ``--format`` flag
+
 v0.1.1
 ------
 

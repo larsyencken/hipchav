@@ -68,25 +68,29 @@ def list_rooms():
 
 
 def message_room(room_name, message, color=None, notify=False,
-                 sender='HipChav'):
+                 sender='HipChav', message_format='text'):
+    if message_format not in ('text', 'html'):
+        raise ValueError('invalid message format {0}'.format(message_format))
+
     api_token = _get_auth_token()
     if api_token.version == 1:
         message_room_v1(api_token.token, room_name, message, color=color,
-                        notify=notify, sender=sender)
+                        notify=notify, sender=sender,
+                        message_format=message_format)
     elif api_token.version == 2:
         message_room_v2(api_token.token, room_name, message, color=color,
-                        notify=notify)
+                        notify=notify, message_format=message_format)
 
     else:
         raise ValueError('unknown api version {0}'.format(api_token.version))
 
 
 def message_room_v1(token, room_name, message, color=None, notify=False,
-                    sender='HipChav'):
+                    sender='HipChav', message_format='text'):
     data = {'room_id': room_name,
             'from': sender,
             'message': message,
-            'message_format': 'text',
+            'message_format': message_format,
             'notify': notify,
             'format': 'json'}
     if color:
@@ -97,9 +101,11 @@ def message_room_v1(token, room_name, message, color=None, notify=False,
                headers={'content-type': 'application/x-www-form-urlencoded'})
 
 
-def message_room_v2(token, room_name, message, color=None, notify=False):
+def message_room_v2(token, room_name, message, color=None, notify=False,
+                    message_format='text'):
     url = URL_MESSAGES_V2.format(room_name)
-    data = {'message': message}
+    data = {'message': message,
+            'message_format': message_format}
     if color:
         data['color'] = color
 
@@ -157,6 +163,10 @@ to list the available rooms, and the message command to send a message to one.""
     parser.add_option('-f', '--from', action='store', dest='sender',
                       help='Who the message will appear to be from '
                       '(v1 API only)')
+    parser.add_option('--format', action='store', dest='message_format',
+                      type='choice', choices=['text', 'html'],
+                      default='text',
+                      help='What format the message is in [text]')
 
     return parser
 
@@ -179,7 +189,8 @@ def main(argv):
     elif cmd == 'message' and len(args) == 2:
         room, message = args
         message_room(room, message, notify=options.notify,
-                     color=options.color, sender=options.sender)
+                     color=options.color, sender=options.sender,
+                     message_format=options.message_format)
 
     else:
         parser.print_help()
