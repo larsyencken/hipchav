@@ -58,6 +58,11 @@ Check its usage information for full options::
 Changelog
 =========
 
+v0.1.3
+------
+
+- Install as both a script and a module
+
 v0.1.2
 ------
 

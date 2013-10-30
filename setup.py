@@ -6,7 +6,7 @@
 
 from setuptools import setup
 
-VERSION = '0.1.2'
+VERSION = '0.1.3'
 
 setup(
     name='hipchav',
@@ -18,6 +18,6 @@ setup(
     author_email="lars@yencken.org",
     license="ISC",
     scripts=['hipchav.py'],
-    packages=[],
+    py_modules=['hipchav'],
     install_requires=['requests>=1.2.3'],
 )
