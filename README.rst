@@ -79,3 +79,9 @@ v0.1.0
 ------
 
 - Initial release, supports listing rooms and messaging with color and notifications
+
+
+.. image:: https://d2weczhvl823v0.cloudfront.net/larsyencken/hipchav/trend.png
+   :alt: Bitdeli badge
+   :target: https://bitdeli.com/free
+
